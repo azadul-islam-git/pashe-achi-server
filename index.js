@@ -1,5 +1,5 @@
 import express from "express";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import "dotenv/config";
 import cors from "cors";
 
@@ -22,6 +22,7 @@ export async function connectToMongoDB() {
 const mongoclient = await connectToMongoDB();
 const db = mongoclient.db("pashe-achi");
 const eventCollection = db.collection("events");
+const joinedEventCollection = db.collection("joinedEvents");
 
 app.get("/", (req, res) => {
   res.send("welcome to pashe achi website");
@@ -35,9 +36,24 @@ app.post("/events", async (req, res) => {
   res.send(result);
 });
 
-// show event
+// show events
 app.get("/events", async (req, res) => {
   const result = await eventCollection.find().toArray();
+  res.send(result);
+});
+
+// show signle event
+app.get("/events/:id", async (req, res) => {
+  const id = req.params.id;
+  const query = { _id: new ObjectId(id) };
+  const result = await eventCollection.findOne(query);
+  res.send(result);
+});
+
+// joined event database
+app.post("/joinedEvents", async (req, res) => {
+  const data = req.body;
+  const result = await joinedEventCollection.insertOne(data);
   res.send(result);
 });
 
