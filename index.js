@@ -42,6 +42,21 @@ app.get("/events", async (req, res) => {
   res.send(result);
 });
 
+// show 6 recent event
+app.get("/upcomingEvents", async (req, res) => {
+  const today = new Date().toISOString().split("T")[0];
+
+  const result = await eventCollection
+    .find({
+      eventDate: { $gte: today },
+    })
+    .sort({ eventDate: 1 })
+    .limit(6)
+    .toArray();
+
+  res.send(result);
+});
+
 // show signle event
 app.get("/events/:id", async (req, res) => {
   const id = req.params.id;
@@ -50,7 +65,70 @@ app.get("/events/:id", async (req, res) => {
   res.send(result);
 });
 
-// joined event database
+// get all event that the user created
+app.get("/myEvents/:email", async (req, res) => {
+  const { email } = req.params;
+  const result = await eventCollection
+    .find({ creatorEmail: email })
+    .sort({ eventDate: 1 })
+    .toArray();
+  res.send(result);
+});
+
+// delete event that login user created
+app.delete("/events/:id", async (req, res) => {
+  const { id } = req.params;
+  const { email } = req.body;
+  const result = await eventCollection.deleteOne({
+    _id: new ObjectId(id),
+    creatorEmail: email,
+  });
+  res.send({
+    message: "Event deleted successfully",
+    deletedCount: result.deletedCount,
+  });
+});
+
+// edit event
+app.patch("/events/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    email,
+    title,
+    description,
+    eventType,
+    thumbnail,
+    location,
+    eventDate,
+  } = req.body;
+
+  // Update only the event created by this user
+  const result = await eventCollection.updateOne(
+    {
+      _id: new ObjectId(id),
+      creatorEmail: email,
+    },
+    {
+      $set: {
+        title,
+        description,
+        eventType,
+        thumbnail,
+        location,
+        eventDate,
+      },
+    },
+  );
+
+  res.send({
+    message: "Event updated successfully",
+    modifiedCount: result.modifiedCount,
+  });
+});
+
+//* joined event database
+// send data
 app.post("/joinedEvents", async (req, res) => {
   const data = req.body;
   const result = await joinedEventCollection.insertOne(data);
@@ -63,9 +141,10 @@ app.get("/joinedEvents", async (req, res) => {
   res.send(result);
 });
 
-// get event data by email
+// get event by log in user
 app.get("/joinedEvents/:email", async (req, res) => {
   const { email } = req.params;
+
   const result = await joinedEventCollection
     .find({ "user.email": email })
     .sort({ "event.eventDate": 1 })
