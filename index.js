@@ -2,6 +2,7 @@ import express from "express";
 import { MongoClient, ObjectId } from "mongodb";
 import "dotenv/config";
 import cors from "cors";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const app = express();
 const PORT = 8000;
@@ -24,12 +25,35 @@ const db = mongoclient.db("pashe-achi");
 const eventCollection = db.collection("events");
 const joinedEventCollection = db.collection("joinedEvents");
 
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ message: "Unauthorized" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized" });
+  }
+
+  const JWKS = createRemoteJWKSet(
+    new URL("http://localhost:3000/api/auth/jwks"),
+  );
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    next();
+  } catch (error) {
+    return res.status(401).send({ message: "Invalid or expired token" });
+  }
+};
+
 app.get("/", (req, res) => {
   res.send("welcome to pashe achi website");
 });
 
 // add event
-app.post("/events", async (req, res) => {
+app.post("/events", verifyToken, async (req, res) => {
   const data = req.body;
   console.log(data);
   const result = await eventCollection.insertOne(data);
@@ -66,7 +90,7 @@ app.get("/events/:id", async (req, res) => {
 });
 
 // get all event that the user created
-app.get("/myEvents/:email", async (req, res) => {
+app.get("/myEvents/:email", verifyToken, async (req, res) => {
   const { email } = req.params;
   const result = await eventCollection
     .find({ creatorEmail: email })
@@ -76,7 +100,7 @@ app.get("/myEvents/:email", async (req, res) => {
 });
 
 // delete event that login user created
-app.delete("/events/:id", async (req, res) => {
+app.delete("/events/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   const { email } = req.body;
   const result = await eventCollection.deleteOne({
@@ -90,7 +114,7 @@ app.delete("/events/:id", async (req, res) => {
 });
 
 // edit event
-app.patch("/events/:id", async (req, res) => {
+app.patch("/events/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
 
   const {
@@ -129,20 +153,27 @@ app.patch("/events/:id", async (req, res) => {
 
 //* joined event database
 // send data
-app.post("/joinedEvents", async (req, res) => {
-  const data = req.body;
-  const result = await joinedEventCollection.insertOne(data);
-  res.send(result);
-});
+app.post("/joinedEvents", verifyToken, async (req, res) => {
+  const { eventId, user } = req.body;
 
-// get all joined event
-app.get("/joinedEvents", async (req, res) => {
-  const result = await joinedEventCollection.find().toArray();
+  const alreadyJoined = await joinedEventCollection.findOne({
+    eventId,
+    "user.email": user.email,
+  });
+
+  if (alreadyJoined) {
+    return res
+      .status(409)
+      .send({ message: "You have already joined this event" });
+  }
+
+  const result = await joinedEventCollection.insertOne(req.body);
+
   res.send(result);
 });
 
 // get event by log in user
-app.get("/joinedEvents/:email", async (req, res) => {
+app.get("/joinedEvents/:email", verifyToken, async (req, res) => {
   const { email } = req.params;
 
   const result = await joinedEventCollection
