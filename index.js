@@ -37,7 +37,7 @@ const verifyToken = async (req, res, next) => {
   }
 
   const JWKS = createRemoteJWKSet(
-    new URL("http://localhost:3000/api/auth/jwks"),
+    new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
   );
 
   try {
@@ -52,7 +52,7 @@ app.get("/", (req, res) => {
   res.send("welcome to pashe achi website");
 });
 
-// add event
+//? add event
 app.post("/events", verifyToken, async (req, res) => {
   const data = req.body;
   console.log(data);
@@ -86,10 +86,16 @@ app.get("/events/:id", async (req, res) => {
   const id = req.params.id;
   const query = { _id: new ObjectId(id) };
   const result = await eventCollection.findOne(query);
+
+  if (!result) {
+    return res.status(404).send({
+      message: "Event not found",
+    });
+  }
   res.send(result);
 });
 
-// get all event that the user created
+//? get all event that the user created
 app.get("/myEvents/:email", verifyToken, async (req, res) => {
   const { email } = req.params;
   const result = await eventCollection
@@ -152,7 +158,7 @@ app.patch("/events/:id", verifyToken, async (req, res) => {
 });
 
 //* joined event database
-// send data
+//? send data
 app.post("/joinedEvents", verifyToken, async (req, res) => {
   const { eventId, user } = req.body;
 
@@ -172,7 +178,7 @@ app.post("/joinedEvents", verifyToken, async (req, res) => {
   res.send(result);
 });
 
-// get event by log in user
+//? get event by log in user
 app.get("/joinedEvents/:email", verifyToken, async (req, res) => {
   const { email } = req.params;
 
